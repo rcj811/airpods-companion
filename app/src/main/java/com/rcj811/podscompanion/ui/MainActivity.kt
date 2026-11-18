@@ -45,8 +45,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        PodsService.start(this)
         if (missingPermissions().isNotEmpty()) permissionLauncher.launch(missingPermissions().toTypedArray())
-        else PodsService.start(this)
 
         setContent {
             PodsTheme {

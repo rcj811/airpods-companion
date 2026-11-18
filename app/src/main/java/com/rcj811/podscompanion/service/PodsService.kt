@@ -66,6 +66,7 @@ class PodsService : Service() {
     private var lowAlerted = false
     private var lastBleAt = 0L
     private var lastLidOpen: Boolean? = null
+    private var started = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -73,7 +74,11 @@ class PodsService : Service() {
         super.onCreate()
         Prefs.init(this)
         createChannels()
-        startAsForeground(buildNotification(PodsRepository.state.value))
+        if (!startAsForeground(buildNotification(PodsRepository.state.value))) {
+            stopSelf()
+            return
+        }
+        started = true
         popup = BatteryPopup(this)
         scanner = BleScanner(this, ::onBle)
         aacp = AacpClient(this, scope, aacpListener)
@@ -103,6 +108,7 @@ class PodsService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!started) return START_NOT_STICKY
         when (intent?.action) {
             ACTION_SHOW_POPUP -> showPopup(force = true)
             ACTION_SET_MODE -> {
@@ -120,6 +126,11 @@ class PodsService : Service() {
     }
 
     override fun onDestroy() {
+        if (!started) {
+            scope.cancel()
+            super.onDestroy()
+            return
+        }
         runCatching { unregisterReceiver(btReceiver) }
         scanner.stop()
         aacp.disconnect()
@@ -360,13 +371,13 @@ class PodsService : Service() {
         )
     }
 
-    private fun startAsForeground(n: Notification) {
+    private fun startAsForeground(n: Notification): Boolean {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-        try {
+        return try {
             ServiceCompat.startForeground(this, NOTIF_ID, n, type)
+            true
         } catch (e: Exception) {
-            // Missing Bluetooth permission on Android 14+: run without foreground type until granted.
-            stopSelf()
+            false
         }
     }
 
@@ -409,7 +420,12 @@ class PodsService : Service() {
             return if (parts.isEmpty()) "讀取電量中…" else parts.joinToString("  ·  ")
         }
 
+        fun canRun(context: Context) = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
         fun start(context: Context, action: String? = null, extras: Intent.() -> Unit = {}) {
+            // Android 14+ refuses a connectedDevice foreground service without Bluetooth permission.
+            if (!canRun(context)) return
             val i = Intent(context, PodsService::class.java).setAction(action).apply(extras)
             try {
                 ContextCompat.startForegroundService(context, i)
