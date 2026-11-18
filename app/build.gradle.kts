@@ -12,15 +12,30 @@ android {
         applicationId = "com.rcj811.podscompanion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI run number = version code, so every build on main is a newer version.
+        val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = run
+        versionName = "0.2.$run"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Fixed key (committed in ci/) so every CI build can update the installed app.
+    signingConfigs {
+        create("fixed") {
+            storeFile = rootProject.file("ci/release.jks")
+            storePassword = "podscompanion"
+            keyAlias = "pods"
+            keyPassword = "podscompanion"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("fixed")
+        }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("fixed")
         }
     }
     compileOptions {
@@ -28,7 +43,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

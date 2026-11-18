@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rcj811.podscompanion.Prefs
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.width
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -81,6 +84,8 @@ fun SettingsScreen(
             }
         }
 
+        UpdateCard()
+
         SectionTitle("關於")
         Card {
             Hint(
@@ -114,5 +119,48 @@ private fun ToggleRow(title: String, desc: String, checked: Boolean, onChange: (
             Hint(desc)
         }
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun UpdateCard() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val status by com.rcj811.podscompanion.update.Updater.status.collectAsStateWithLifecycle()
+    var auto by remember { mutableStateOf(Prefs.autoUpdate) }
+    SectionTitle("更新")
+    Card {
+        ToggleRow("自動檢查並安裝更新", "目前版本 ${com.rcj811.podscompanion.update.Updater.currentVersion}", auto) {
+            auto = it; Prefs.autoUpdate = it
+        }
+        Spacer(Modifier.height(8.dp))
+        Hint(
+            when (val s = status) {
+                is com.rcj811.podscompanion.update.Updater.Status.Idle -> "每次開啟 App 與每 3 小時自動檢查"
+                is com.rcj811.podscompanion.update.Updater.Status.Checking -> "檢查中…"
+                is com.rcj811.podscompanion.update.Updater.Status.UpToDate -> "已是最新版本"
+                is com.rcj811.podscompanion.update.Updater.Status.Downloading -> "下載 ${s.version}… ${s.percent}%"
+                is com.rcj811.podscompanion.update.Updater.Status.Installing -> "安裝 ${s.version}…"
+                is com.rcj811.podscompanion.update.Updater.Status.NeedsPermission -> "有新版本 ${s.version}，需要允許「安裝未知應用程式」"
+                is com.rcj811.podscompanion.update.Updater.Status.Error -> s.message
+            }
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = {
+                scope.launch { com.rcj811.podscompanion.update.Updater.check(ctx, manual = true) }
+            }) { Text("立即檢查") }
+            if (!ctx.packageManager.canRequestPackageInstalls()) {
+                Spacer(Modifier.width(10.dp))
+                Button(onClick = {
+                    ctx.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            android.net.Uri.parse("package:${ctx.packageName}")
+                        )
+                    )
+                }) { Text("允許安裝") }
+            }
+        }
     }
 }

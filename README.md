@@ -20,8 +20,10 @@
 
 Apple 官方 EQ 預設與韌體更新只能在 Apple 裝置上使用。
 
-## 下載
-每次推送到 `main`，GitHub Actions 會自動編譯，APK 在 Releases 的 **latest**。
+## 下載與更新
+每次推送到 `main`，GitHub Actions 會自動編譯，APK 在 Releases 的 **latest**（`pods-companion.apk`）。
+App 會在開啟時與每 3 小時自動檢查 `version.json`，有新版就下載並安裝（第一次需允許「安裝未知應用程式」）。
+所有版本都用 `ci/release.jks` 簽章，因此新版可直接覆蓋安裝、保留設定。
 
 ## 致謝
 - [LibrePods](https://github.com/librepods-org/librepods)、[CAPod](https://github.com/d4rken-org/capod)：AirPods 協定的公開逆向研究（本專案為獨立實作）

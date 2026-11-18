@@ -29,6 +29,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.rcj811.podscompanion.service.PodsService
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -39,6 +41,11 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
         PodsService.start(this)
+        if (com.rcj811.podscompanion.Prefs.autoUpdate) {
+            lifecycleScope.launch {
+                com.rcj811.podscompanion.update.Updater.check(this@MainActivity, manual = false, force = true)
+            }
+        }
         resumeTick.intValue++
     }
 

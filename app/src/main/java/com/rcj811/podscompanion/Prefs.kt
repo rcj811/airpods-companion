@@ -39,6 +39,14 @@ object Prefs {
         }
         set(v) = sp.edit().putString("eq_gains", v.joinToString(",")).apply()
 
+    var autoUpdate: Boolean
+        get() = sp.getBoolean("auto_update", true)
+        set(v) = sp.edit().putBoolean("auto_update", v).apply()
+
+    var lastUpdateCheck: Long
+        get() = sp.getLong("last_update_check", 0L)
+        set(v) = sp.edit().putLong("last_update_check", v).apply()
+
     /** Which headphone model the user owns (key from EqData), used for correction/mimic presets. */
     var ownModelKey: String?
         get() = sp.getString("own_model", null)

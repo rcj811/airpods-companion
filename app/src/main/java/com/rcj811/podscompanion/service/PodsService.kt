@@ -107,6 +107,14 @@ class PodsService : Service() {
 
         EqEngine.attachGlobal()
         checkAlreadyConnected()
+
+        // Auto update: check now and then every 3 hours while the service runs.
+        scope.launch {
+            while (true) {
+                if (Prefs.autoUpdate) com.rcj811.podscompanion.update.Updater.check(this@PodsService)
+                delay(3 * 60 * 60 * 1000L)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
