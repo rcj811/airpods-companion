@@ -52,6 +52,12 @@ data class ScanDiag(
     val bestRssi: Int? = null,
     val rejectedWeak: Int = 0,
     val rejectedModel: Int = 0,
+    /** Any BLE advertisement at all (proves scanning works). */
+    val totalSeen: Int = 0,
+    /** Apple advertisements that are not AirPods status messages. */
+    val appleOther: Int = 0,
+    val lastAppleType: String? = null,
+    val unfiltered: Boolean = false,
 )
 
 enum class PodsModel(val label: String, val overEar: Boolean = false, val eqKey: String? = null) {
