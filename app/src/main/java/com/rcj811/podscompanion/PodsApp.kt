@@ -11,5 +11,6 @@ class PodsApp : Application() {
             runCatching { HiddenApiBypass.addHiddenApiExemptions("Landroid/bluetooth/") }
         }
         Prefs.init(this)
+        DiagLog.init(this)
     }
 }

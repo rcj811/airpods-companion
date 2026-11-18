@@ -85,6 +85,7 @@ fun SettingsScreen(
         }
 
         UpdateCard()
+        DiagCard()
 
         SectionTitle("關於")
         Card {
@@ -161,6 +162,27 @@ private fun UpdateCard() {
                     )
                 }) { Text("允許安裝") }
             }
+        }
+    }
+}
+
+@Composable
+private fun DiagCard() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lines by com.rcj811.podscompanion.DiagLog.lines.collectAsStateWithLifecycle()
+    SectionTitle("診斷紀錄（斷線後也會保留）")
+    Card {
+        if (lines.isEmpty()) Hint("尚無紀錄")
+        lines.take(40).forEach { Text(it, fontSize = 12.sp, color = Color.White.copy(alpha = 0.75f)) }
+        Spacer(Modifier.height(8.dp))
+        Row {
+            Button(onClick = {
+                val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("diag", lines.joinToString("\n")))
+                android.widget.Toast.makeText(ctx, "已複製", android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text("複製全部") }
+            Spacer(Modifier.width(10.dp))
+            Button(onClick = { com.rcj811.podscompanion.DiagLog.clear() }) { Text("清除") }
         }
     }
 }

@@ -200,6 +200,7 @@ class PodsService : Service() {
     @SuppressLint("MissingPermission")
     private fun onPodsConnected(device: BluetoothDevice) {
         val name = runCatching { device.name }.getOrNull()
+        com.rcj811.podscompanion.DiagLog.add("AirPods 已連線：$name")
         // Show the last known levels right away (like iPad does), refreshed as soon as new data arrives.
         val cached = Prefs.loadBattery(device.address)
         PodsRepository.update {
@@ -234,6 +235,7 @@ class PodsService : Service() {
     }
 
     private fun onPodsDisconnected() {
+        com.rcj811.podscompanion.DiagLog.add("AirPods 已斷線")
         aacp.disconnect()
         popup.dismiss()
         scanner.expectedModelId = null
@@ -246,10 +248,12 @@ class PodsService : Service() {
 
     private val aacpListener = object : AacpClient.Listener {
         override fun onConnected() {
+            com.rcj811.podscompanion.DiagLog.add("控制連線成功（${aacp.lastMethod}）")
             scope.launch { PodsRepository.update { it.copy(aacp = AacpStatus.CONNECTED, aacpError = null) } }
         }
 
         override fun onDisconnected(error: String?) {
+            com.rcj811.podscompanion.DiagLog.add(if (error != null) "控制連線失敗：$error" else "控制連線中斷")
             scope.launch {
                 PodsRepository.update {
                     if (error != null) it.copy(aacp = AacpStatus.UNSUPPORTED, aacpError = error)
@@ -259,6 +263,7 @@ class PodsService : Service() {
         }
 
         override fun onBattery(left: Pod?, right: Pod?, case: Pod?, single: Pod?) {
+            com.rcj811.podscompanion.DiagLog.add("AACP 電量 左${left?.level} 右${right?.level} 盒${case?.level} 單${single?.level}")
             scope.launch {
                 PodsRepository.update {
                     it.copy(
@@ -285,6 +290,10 @@ class PodsService : Service() {
     // ---- BLE battery ---------------------------------------------------------------------
 
     private fun onBle(r: AppleProximityParser.Result, rssi: Int) {
+        com.rcj811.podscompanion.DiagLog.add(
+            "廣播 ${r.model.label} ${rssi}dBm 左${r.left.level}${if (r.left.charging) "⚡" else ""} " +
+                "右${r.right.level}${if (r.right.charging) "⚡" else ""} 盒${r.case.level} 原始 ${r.raw}"
+        )
         lastBleAt = SystemClock.elapsedRealtime()
         val s = PodsRepository.state.value
         // When not connected, only use broadcasts to detect "case opened" nearby; otherwise ignore.

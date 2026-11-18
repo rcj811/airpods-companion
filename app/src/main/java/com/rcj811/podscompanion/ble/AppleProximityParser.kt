@@ -28,6 +28,7 @@ object AppleProximityParser {
         val case: Pod,
         val single: Pod,
         val lidOpen: Boolean?,
+        val raw: String = "",
     )
 
     /**
@@ -57,6 +58,8 @@ object AppleProximityParser {
         return out
     }
 
+    private fun hex(b: ByteArray) = b.take(11).joinToString("") { "%02X".format(it) }
+
     fun parse(raw: ByteArray?): Result? {
         val m = findProximityMessage(raw) ?: return null
         if (m.size < 9) return null
@@ -84,7 +87,7 @@ object AppleProximityParser {
 
         if (model.overEar) {
             val single = Pod(level(lower), charging = flags and 0x01 != 0, inEar = bit(5))
-            return Result(model, modelId, Pod(), Pod(), Pod(), single, null)
+            return Result(model, modelId, Pod(), Pod(), Pod(), single, null, hex(m))
         }
 
         val leftLevel = level(if (flipped) upper else lower)
@@ -108,6 +111,7 @@ object AppleProximityParser {
             case = Pod(level(caseNibble), caseCharging),
             single = Pod(),
             lidOpen = lidOpen,
+            raw = hex(m),
         )
     }
 }
