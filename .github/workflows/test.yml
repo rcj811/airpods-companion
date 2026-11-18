@@ -28,7 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { api: 29, target: default }
           - { api: 31, target: google_apis }
           - { api: 34, target: google_apis }
     steps:
