@@ -6,7 +6,9 @@ adb logcat -c
 gradle connectedDebugAndroidTest --stacktrace
 TEST_RC=$?
 
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+# stress-test the minified release build users actually install
+adb uninstall $PKG || true
+adb install -r app/build/outputs/apk/release/app-release.apk
 for p in BLUETOOTH_SCAN BLUETOOTH_CONNECT ACCESS_FINE_LOCATION POST_NOTIFICATIONS; do
   adb shell pm grant $PKG android.permission.$p || true
 done

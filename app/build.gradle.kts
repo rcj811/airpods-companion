@@ -34,7 +34,9 @@ android {
             signingConfig = signingConfigs.getByName("fixed")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("fixed")
         }
     }
