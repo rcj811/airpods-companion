@@ -22,5 +22,7 @@ if grep -E "FATAL EXCEPTION|ANR in $PKG|CRASH: $PKG" -A 30 logcat.txt monkey.txt
   echo "::error::App crashed or froze"
   exit 1
 fi
+echo "--- app warnings ---"
+grep -E "EqEngine|AacpClient|BleScanner|PodsService|AndroidRuntime" logcat.txt | head -40
 echo "monkey rc=$MONKEY_RC test rc=$TEST_RC"
 [ $TEST_RC -eq 0 ] && [ $MONKEY_RC -eq 0 ]

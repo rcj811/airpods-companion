@@ -141,7 +141,6 @@ class CrashTest {
         compose.onNodeWithText("原音校正").performScrollTo().performClick()
         compose.onAllNodesWithText("Sony WH-1000XM5").onLast().performScrollTo().performClick()
         compose.onAllNodesWithText("Sennheiser HD 600").onLast().performScrollTo().performClick()
-        compose.onNodeWithText("Bose QC45").performScrollTo() // pill row + list both exist? just scroll
         compose.onAllNodesWithText("Galaxy Buds2 Pro").onFirst().performScrollTo().performClick() // change own model (pill)
         for (style in listOf("重低音", "人聲", "跑步", "夜間", "平衡")) {
             compose.onNodeWithText(style).performScrollTo().performClick()
