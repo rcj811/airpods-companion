@@ -39,6 +39,23 @@ object Prefs {
         }
         set(v) = sp.edit().putString("eq_gains", v.joinToString(",")).apply()
 
+    /** Last battery reading per device: "model|l|lc|r|rc|c|cc|single|sc|time". */
+    fun saveBattery(address: String, s: PodsState) {
+        fun p(x: Pod) = "${x.level}|${if (x.charging) 1 else 0}"
+        sp.edit().putString("bat_$address",
+            "${s.model.name}|${p(s.left)}|${p(s.right)}|${p(s.case)}|${p(s.single)}|${s.lastUpdate}").apply()
+    }
+
+    fun loadBattery(address: String): PodsState? = runCatching {
+        val v = sp.getString("bat_$address", null)?.split("|") ?: return null
+        fun pod(i: Int) = Pod(v[i].toInt(), v[i + 1] == "1")
+        PodsState(
+            model = PodsModel.valueOf(v[0]),
+            left = pod(1), right = pod(3), case = pod(5), single = pod(7),
+            lastUpdate = v[9].toLong(),
+        )
+    }.getOrNull()
+
     var autoUpdate: Boolean
         get() = sp.getBoolean("auto_update", true)
         set(v) = sp.edit().putBoolean("auto_update", v).apply()

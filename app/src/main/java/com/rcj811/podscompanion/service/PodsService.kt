@@ -200,8 +200,17 @@ class PodsService : Service() {
     @SuppressLint("MissingPermission")
     private fun onPodsConnected(device: BluetoothDevice) {
         val name = runCatching { device.name }.getOrNull()
+        // Show the last known levels right away (like iPad does), refreshed as soon as new data arrives.
+        val cached = Prefs.loadBattery(device.address)
         PodsRepository.update {
             it.copy(
+                model = cached?.model ?: it.model,
+                left = cached?.left?.copy(charging = false) ?: it.left,
+                right = cached?.right?.copy(charging = false) ?: it.right,
+                case = cached?.case ?: it.case,
+                single = cached?.single ?: it.single,
+                lastUpdate = cached?.lastUpdate ?: 0L,
+                batterySource = if (cached != null) "上次記錄" else "",
                 connected = true, deviceName = name, deviceAddress = device.address,
                 systemLevel = systemBatteryLevel(device), diag = com.rcj811.podscompanion.ScanDiag(),
             )
@@ -302,6 +311,7 @@ class PodsService : Service() {
                 lastUpdate = System.currentTimeMillis(),
             )
         }
+        PodsRepository.state.value.deviceAddress?.let { Prefs.saveBattery(it, PodsRepository.state.value) }
         // Case lid opened again while connected → show the popup like on iPhone/iPad.
         if (r.lidOpen == true && lastLidOpen == false) showPopup(force = false)
         if (r.lidOpen != null) lastLidOpen = r.lidOpen

@@ -83,7 +83,10 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
             }
             if (s.connected) {
                 Spacer(Modifier.height(12.dp))
-                Hint(if (s.batterySource.isNotEmpty()) "來源：${s.batterySource}" else "等待 AirPods 廣播電量…（打開充電盒會更快）")
+                Hint(
+                    if (s.batterySource.isNotEmpty()) "來源：${s.batterySource}" + ago(s.lastUpdate)
+                    else "等待 AirPods 廣播電量…（打開充電盒會更快）"
+                )
                 if (!s.hasBattery && s.systemLevel in 0..100) {
                     Spacer(Modifier.height(6.dp))
                     Hint("目前只拿到耳機回報的整體電量（10% 精度）。打開充電盒蓋可看到左右耳與充電盒。")
@@ -186,6 +189,16 @@ private fun ModeChip(label: String, selected: Boolean, enabled: Boolean, modifie
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = Color.White.copy(alpha = if (enabled) 1f else 0.35f), fontSize = 14.sp, textAlign = TextAlign.Center)
+    }
+}
+
+private fun ago(t: Long): String {
+    if (t <= 0L) return ""
+    val min = (System.currentTimeMillis() - t) / 60_000
+    return when {
+        min < 1 -> " · 剛剛更新"
+        min < 60 -> " · ${min} 分鐘前更新"
+        else -> " · ${min / 60} 小時前更新（放回盒子開蓋可刷新）"
     }
 }
 
