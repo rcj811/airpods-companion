@@ -47,23 +47,38 @@ class AacpClient(
         if (isConnected) return
         readJob?.cancel()
         readJob = scope.launch(Dispatchers.IO) {
-            val s = try {
-                createSocket(device)
-            } catch (e: Throwable) {
-                listener.onDisconnected("無法建立 L2CAP 連線：${e.message}")
+            // Try every way of opening the L2CAP channel; phones differ in which one works.
+            val errors = mutableListOf<String>()
+            var s: BluetoothSocket? = null
+            outer@ for (attempt in 1..2) {
+                for ((name, factory) in socketFactories(device)) {
+                    val candidate = try {
+                        factory()
+                    } catch (e: Throwable) {
+                        if (attempt == 1) errors += "$name：建立失敗 ${short(e)}"
+                        continue
+                    }
+                    val watchdog = scope.launch { delay(10_000); runCatching { candidate.close() } }
+                    try {
+                        candidate.connect()
+                        watchdog.cancel()
+                        s = candidate
+                        lastMethod = name
+                        break@outer
+                    } catch (e: Throwable) {
+                        watchdog.cancel()
+                        runCatching { candidate.close() }
+                        errors += "$name：連線失敗 ${short(e)}"
+                    }
+                }
+                delay(3000)
+            }
+            if (s == null) {
+                listener.onDisconnected("無法建立 AirPods 控制連線。\n" + errors.distinct().joinToString("\n"))
                 return@launch
             }
-            val watchdog = scope.launch { delay(6000); runCatching { s.close() } }
-            try {
-                s.connect()
-                watchdog.cancel()
-            } catch (e: Throwable) {
-                watchdog.cancel()
-                runCatching { s.close() }
-                listener.onDisconnected("手機藍牙堆疊不支援（需 Android 16 QPR3 以上或 root）")
-                return@launch
-            }
-            socket = s
+            val sock: BluetoothSocket = s
+            socket = sock
             try {
                 send(AacpPackets.HANDSHAKE)
                 delay(200)
@@ -71,11 +86,11 @@ class AacpClient(
                 delay(200)
                 send(AacpPackets.REQUEST_NOTIFICATIONS)
                 listener.onConnected()
-                readLoop(s)
+                readLoop(sock)
             } catch (e: Throwable) {
                 Log.w(TAG, "aacp session ended", e)
             } finally {
-                runCatching { s.close() }
+                runCatching { sock.close() }
                 socket = null
                 listener.onDisconnected(null)
             }
@@ -128,10 +143,19 @@ class AacpClient(
         }
     }
 
+    var lastMethod: String? = null
+        private set
+
+    private fun short(e: Throwable): String {
+        val c = if (e is java.lang.reflect.InvocationTargetException) e.cause ?: e else e
+        return "${c.javaClass.simpleName}: ${c.message ?: ""}".take(120)
+    }
+
     @SuppressLint("MissingPermission", "DiscouragedPrivateApi")
-    private fun createSocket(device: BluetoothDevice): BluetoothSocket {
-        // 1) Public API on newer Android (BluetoothSocketSettings, API 36.1+/37)
-        runCatching {
+    private fun socketFactories(device: BluetoothDevice): List<Pair<String, () -> BluetoothSocket>> {
+        val list = mutableListOf<Pair<String, () -> BluetoothSocket>>()
+        // 1) Public API (BluetoothSocketSettings, newer Android)
+        list += "公開 API" to {
             val settingsClass = Class.forName("android.bluetooth.BluetoothSocketSettings")
             val builderClass = Class.forName("android.bluetooth.BluetoothSocketSettings\$Builder")
             val b = builderClass.getDeclaredConstructor().newInstance()
@@ -140,14 +164,16 @@ class AacpClient(
             builderClass.getMethod("setAuthenticationRequired", Boolean::class.javaPrimitiveType).invoke(b, false)
             builderClass.getMethod("setEncryptionRequired", Boolean::class.javaPrimitiveType).invoke(b, false)
             val settings = builderClass.getMethod("build").invoke(b)
-            return BluetoothDevice::class.java.getMethod("createUsingSocketSettings", settingsClass)
+            BluetoothDevice::class.java.getMethod("createUsingSocketSettings", settingsClass)
                 .invoke(device, settings) as BluetoothSocket
         }
-        // 2) Hidden helper method
-        runCatching {
-            val m = BluetoothDevice::class.java.getDeclaredMethod("createInsecureL2capSocket", Int::class.javaPrimitiveType)
-            m.isAccessible = true
-            return m.invoke(device, PSM) as BluetoothSocket
+        // 2) Hidden helper methods
+        for (m in listOf("createInsecureL2capSocket", "createL2capSocket")) {
+            list += m to {
+                val method = BluetoothDevice::class.java.getDeclaredMethod(m, Int::class.javaPrimitiveType)
+                method.isAccessible = true
+                method.invoke(device, PSM) as BluetoothSocket
+            }
         }
         // 3) Hidden constructors (signature differs between Android versions)
         val adapter = context.getSystemService(BluetoothManager::class.java).adapter
@@ -158,9 +184,8 @@ class AacpClient(
             arrayOf(TYPE_L2CAP, 1, true, true, device, PSM, AAP_UUID),
             arrayOf(TYPE_L2CAP, true, true, device, PSM, AAP_UUID),
         )
-        var last: Throwable? = null
-        for (args in specs) {
-            try {
+        specs.forEachIndexed { i, args ->
+            list += "建構式${i + 1}" to {
                 val types = args.map { a ->
                     when (a) {
                         is Int -> Int::class.javaPrimitiveType!!
@@ -173,12 +198,10 @@ class AacpClient(
                 }.toTypedArray()
                 val c = BluetoothSocket::class.java.getDeclaredConstructor(*types)
                 c.isAccessible = true
-                return c.newInstance(*args) as BluetoothSocket
-            } catch (e: Throwable) {
-                last = e
+                c.newInstance(*args) as BluetoothSocket
             }
         }
-        throw last ?: IOException("no socket constructor")
+        return list
     }
 
     companion object {
