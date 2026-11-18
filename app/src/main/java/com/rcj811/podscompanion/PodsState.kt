@@ -56,7 +56,9 @@ data class ScanDiag(
     val totalSeen: Int = 0,
     /** Apple advertisements that are not AirPods status messages. */
     val appleOther: Int = 0,
-    val lastAppleType: String? = null,
+    val appleTypes: Set<String> = emptySet(),
+    /** Proximity messages found but too short to decode. */
+    val proximityBad: Int = 0,
     val unfiltered: Boolean = false,
 )
 

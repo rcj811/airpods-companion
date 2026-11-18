@@ -67,7 +67,8 @@ class BleScanner(
             onDiag {
                 copy(
                     totalSeen = totalSeen + 1, appleOther = appleOther + 1,
-                    lastAppleType = if (data.size >= 2) "%02X/%02X".format(data[0], data[1]) else lastAppleType,
+                    appleTypes = (appleTypes + AppleProximityParser.messageTypes(data)).toSortedSet().take(8).toSet(),
+                    proximityBad = proximityBad + (if (AppleProximityParser.findProximityMessage(data) != null) 1 else 0),
                 )
             }
             return

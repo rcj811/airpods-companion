@@ -101,7 +101,9 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
                             d.scanError != null -> d.scanError
                             !d.scanning -> "未在掃描"
                             d.appleSeen > 0 -> "收到 ${d.appleSeen} 個 AirPods 廣播（最強 ${d.bestRssi} dBm，太弱 ${d.rejectedWeak}，其他型號 ${d.rejectedModel}）"
-                            d.appleOther > 0 -> "有收到 Apple 裝置訊號 ${d.appleOther} 個，但沒有 AirPods 電量廣播（類型 ${d.lastAppleType}）。請打開充電盒蓋。"
+                            d.appleOther > 0 -> "有收到 Apple 裝置訊號 ${d.appleOther} 個，但沒有 AirPods 電量廣播（訊息類型 ${d.appleTypes.joinToString()}" +
+                                (if (d.proximityBad > 0) "，耳機訊息 ${d.proximityBad} 個無法解析" else "") +
+                                "）。請把耳機放進充電盒、打開盒蓋靠近平板。"
                             d.totalSeen > 0 -> "藍牙掃描正常（收到 ${d.totalSeen} 個裝置訊號），但沒有任何 Apple 訊號。請把耳機放回盒子、開蓋靠近平板。"
                             else -> "掃描中，完全沒收到任何藍牙訊號" + (if (d.unfiltered) "（已改用不過濾模式）" else "")
                         }

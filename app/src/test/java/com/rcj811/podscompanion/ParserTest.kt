@@ -63,10 +63,19 @@ class ParserTest {
         assertTrue(r.single.charging)
     }
 
+    @Test fun bleProximityAfterOtherMessage() {
+        val nearby = byteArrayOf(0x10, 0x05, 1, 2, 3, 4, 5)
+        val r = AppleProximityParser.parse(nearby + ble(0x1420, 0x2A, 0x89, 0x05, 0x00))!!
+        assertEquals(90, r.left.level)
+        assertEquals(listOf("10/05", "07/19"), AppleProximityParser.messageTypes(nearby + ble(0x1420, 0x2A, 0x89, 0x05, 0)))
+        assertNull(AppleProximityParser.parse(nearby))
+    }
+
     @Test fun bleRejectsGarbage() {
         assertNull(AppleProximityParser.parse(null))
         assertNull(AppleProximityParser.parse(ByteArray(3)))
         assertNull(AppleProximityParser.parse(ByteArray(27) { 0x10 }))
+        repeat(2000) { AppleProximityParser.messageTypes(ByteArray(Random(it).nextInt(0, 40)) { b -> (b * 37).toByte() }) }
         val rnd = Random(1)
         repeat(20_000) { // fuzz: must never throw
             val len = rnd.nextInt(0, 40)

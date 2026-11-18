@@ -30,9 +30,37 @@ object AppleProximityParser {
         val lidOpen: Boolean?,
     )
 
-    fun parse(m: ByteArray?): Result? {
-        if (m == null || m.size < 9) return null
-        if (m[0].toInt() != 0x07 || (m[1].toInt() and 0xFF) != 0x19) return null
+    /**
+     * Apple manufacturer data can hold several messages back to back as [type][length][payload…].
+     * Returns the proximity-pairing (0x07) message if present.
+     */
+    fun findProximityMessage(data: ByteArray?): ByteArray? {
+        if (data == null) return null
+        var i = 0
+        while (i + 1 < data.size) {
+            val type = data[i].toInt() and 0xFF
+            val len = data[i + 1].toInt() and 0xFF
+            if (type == 0x07) return data.copyOfRange(i, minOf(data.size, i + 2 + len))
+            i += 2 + len
+        }
+        return null
+    }
+
+    /** All message types in an Apple advertisement, e.g. "10/07" (type/length). */
+    fun messageTypes(data: ByteArray): List<String> {
+        val out = mutableListOf<String>()
+        var i = 0
+        while (i + 1 < data.size) {
+            out += "%02X/%02X".format(data[i], data[i + 1])
+            i += 2 + (data[i + 1].toInt() and 0xFF)
+        }
+        return out
+    }
+
+    fun parse(raw: ByteArray?): Result? {
+        val m = findProximityMessage(raw) ?: return null
+        if (m.size < 9) return null
+        // Length is 0x19 on most models; accept other lengths as long as the fields we need exist.
 
         val modelId = ((m[3].toInt() and 0xFF) shl 8) or (m[4].toInt() and 0xFF)
         val model = PodsModel.fromBleId(modelId)
