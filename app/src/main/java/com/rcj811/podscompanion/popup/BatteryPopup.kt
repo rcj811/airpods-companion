@@ -79,7 +79,9 @@ class BatteryPopup(private val context: Context) {
         val r = row ?: return
         title?.text = state.deviceName ?: state.model.label
         r.removeAllViews()
-        if (state.model.overEar) {
+        if (!state.hasBattery && state.systemLevel in 0..100) {
+            r.addView(item("耳機", Pod(state.systemLevel)))
+        } else if (state.model.overEar) {
             r.addView(item("電量", state.single))
         } else {
             r.addView(item("左耳", state.left))

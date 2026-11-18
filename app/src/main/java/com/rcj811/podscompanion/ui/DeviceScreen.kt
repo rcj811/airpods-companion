@@ -71,7 +71,9 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
         SectionTitle("電量")
         Card {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                if (s.model.overEar) {
+                if (s.connected && !s.hasBattery && s.systemLevel in 0..100) {
+                    BatteryGauge("耳機（系統回報）", Pod(s.systemLevel))
+                } else if (s.model.overEar) {
                     BatteryGauge("耳機", s.single)
                 } else {
                     BatteryGauge("左耳", s.left, showEar = true)
@@ -82,6 +84,27 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
             if (s.connected) {
                 Spacer(Modifier.height(12.dp))
                 Hint(if (s.batterySource.isNotEmpty()) "來源：${s.batterySource}" else "等待 AirPods 廣播電量…（打開充電盒會更快）")
+                if (!s.hasBattery) {
+                    if (!locationOn(ctx)) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("⚠ 手機的「定位」開關是關的", color = Warn, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Hint("Android 規定掃描藍牙廣播時必須開啟定位，否則收不到 AirPods 電量。本 App 不會記錄你的位置。")
+                        Spacer(Modifier.height(6.dp))
+                        Button(onClick = {
+                            ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }) { Text("開啟定位") }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    val d = s.diag
+                    Hint(
+                        "診斷：" + when {
+                            d.scanError != null -> d.scanError
+                            !d.scanning -> "未在掃描"
+                            d.appleSeen == 0 -> "掃描中，尚未收到任何 AirPods 廣播"
+                            else -> "收到 ${d.appleSeen} 個廣播（最強 ${d.bestRssi} dBm，太弱 ${d.rejectedWeak}，其他型號 ${d.rejectedModel}）"
+                        }
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(
                     onClick = { PodsService.start(ctx, PodsService.ACTION_SHOW_POPUP) },
@@ -154,6 +177,11 @@ private fun ModeChip(label: String, selected: Boolean, enabled: Boolean, modifie
     ) {
         Text(label, color = Color.White.copy(alpha = if (enabled) 1f else 0.35f), fontSize = 14.sp, textAlign = TextAlign.Center)
     }
+}
+
+private fun locationOn(ctx: android.content.Context): Boolean {
+    val lm = ctx.getSystemService(android.location.LocationManager::class.java) ?: return true
+    return if (android.os.Build.VERSION.SDK_INT >= 28) lm.isLocationEnabled else true
 }
 
 @Composable

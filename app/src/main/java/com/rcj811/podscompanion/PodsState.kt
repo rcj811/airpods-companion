@@ -32,6 +32,9 @@ data class PodsState(
     val single: Pod = Pod(),
     val lidOpen: Boolean = false,
     val batterySource: String = "",
+    /** Overall headset battery reported by Android itself (HFP), used when BLE gives nothing. */
+    val systemLevel: Int = -1,
+    val diag: ScanDiag = ScanDiag(),
     val lastUpdate: Long = 0L,
     val aacp: AacpStatus = AacpStatus.IDLE,
     val aacpError: String? = null,
@@ -40,6 +43,16 @@ data class PodsState(
 ) {
     val hasBattery get() = left.known || right.known || case.known || single.known
 }
+
+/** Scan diagnostics, shown in the UI so problems can be spotted without a computer. */
+data class ScanDiag(
+    val scanning: Boolean = false,
+    val scanError: String? = null,
+    val appleSeen: Int = 0,
+    val bestRssi: Int? = null,
+    val rejectedWeak: Int = 0,
+    val rejectedModel: Int = 0,
+)
 
 enum class PodsModel(val label: String, val overEar: Boolean = false, val eqKey: String? = null) {
     UNKNOWN("AirPods"),

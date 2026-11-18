@@ -81,12 +81,14 @@ class PodsService : Service() {
         started = true
         popup = BatteryPopup(this)
         scanner = BleScanner(this, ::onBle)
+        scanner.onDiag = { f -> scope.launch { PodsRepository.update { it.copy(diag = it.diag.f()) } } }
         aacp = AacpClient(this, scope, aacpListener)
 
         val filter = IntentFilter().apply {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(ACTION_BATTERY_LEVEL_CHANGED)
         }
         ContextCompat.registerReceiver(this, btReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
 
@@ -146,6 +148,10 @@ class PodsService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             val device = deviceFrom(intent) ?: return
             when (intent.action) {
+                ACTION_BATTERY_LEVEL_CHANGED -> if (device.address == PodsRepository.state.value.deviceAddress) {
+                    val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
+                    if (level in 0..100) PodsRepository.update { it.copy(systemLevel = level) }
+                }
                 BluetoothDevice.ACTION_ACL_CONNECTED -> if (isApplePods(device)) onPodsConnected(device)
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> if (device.address == PodsRepository.state.value.deviceAddress) onPodsDisconnected()
                 BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED -> {
@@ -176,8 +182,12 @@ class PodsService : Service() {
     private fun onPodsConnected(device: BluetoothDevice) {
         val name = runCatching { device.name }.getOrNull()
         PodsRepository.update {
-            it.copy(connected = true, deviceName = name, deviceAddress = device.address)
+            it.copy(
+                connected = true, deviceName = name, deviceAddress = device.address,
+                systemLevel = systemBatteryLevel(device), diag = com.rcj811.podscompanion.ScanDiag(),
+            )
         }
+        scanner.relaxed = true
         lowAlerted = false
         boostScan()
         showPopup(force = false)
@@ -199,6 +209,7 @@ class PodsService : Service() {
         aacp.disconnect()
         popup.dismiss()
         scanner.expectedModelId = null
+        scanner.relaxed = false
         lastLidOpen = null
         fastScanJob?.cancel()
         scanner.stop()
@@ -256,7 +267,9 @@ class PodsService : Service() {
             }
             return
         }
-        if (scanner.expectedModelId == null && r.model != PodsModel.UNKNOWN) scanner.expectedModelId = r.modelId
+        // Lock onto the model of the first strong broadcast so other people's AirPods are ignored.
+        if (scanner.expectedModelId == null && r.model != PodsModel.UNKNOWN && rssi > -72) scanner.expectedModelId = r.modelId
+        if (scanner.expectedModelId == null && rssi <= -72) return
         val aacpBattery = s.aacp == AacpStatus.CONNECTED && s.batterySource.startsWith("AACP")
         PodsRepository.update {
             it.copy(
@@ -276,7 +289,10 @@ class PodsService : Service() {
     }
 
     private fun boostScan() {
-        if (!hasScanPermission()) return
+        if (!hasScanPermission()) {
+            PodsRepository.update { it.copy(diag = it.diag.copy(scanning = false, scanError = "缺少「附近的裝置」權限")) }
+            return
+        }
         scanner.start(lowLatency = true)
         fastScanJob?.cancel()
         fastScanJob = scope.launch {
@@ -327,7 +343,7 @@ class PodsService : Service() {
     }
 
     private fun notificationKey(s: PodsState) =
-        "${s.model}|${s.left}|${s.right}|${s.case}|${s.single}|${s.aacp}"
+        "${s.model}|${s.left}|${s.right}|${s.case}|${s.single}|${s.aacp}|${s.systemLevel}"
 
     private fun buildNotification(s: PodsState): Notification {
         val open = PendingIntent.getActivity(
@@ -388,6 +404,13 @@ class PodsService : Service() {
         checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
     else checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    /** Android's own headset battery (from AirPods' HFP report); hidden API, read via reflection. */
+    @SuppressLint("MissingPermission")
+    private fun systemBatteryLevel(device: BluetoothDevice): Int = runCatching {
+        val v = BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as Int
+        if (v in 0..100) v else -1
+    }.getOrDefault(-1)
+
     @SuppressLint("MissingPermission")
     private fun isApplePods(device: BluetoothDevice): Boolean {
         if (!hasConnectPermission()) return false
@@ -412,11 +435,14 @@ class PodsService : Service() {
         const val ACTION_RECONNECT_AACP = "reconnect_aacp"
         const val EXTRA_MODE = "mode"
         const val EXTRA_ENABLED = "enabled"
+        const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
+        const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
 
         fun batteryLine(s: PodsState): String {
             fun fmt(label: String, p: Pod) = if (p.known) "$label ${p.level}%${if (p.charging) "⚡" else ""}" else null
             val parts = if (s.model.overEar) listOfNotNull(fmt("電量", s.single))
             else listOfNotNull(fmt("左", s.left), fmt("右", s.right), fmt("盒", s.case))
+            if (parts.isEmpty() && s.systemLevel in 0..100) return "耳機電量 ${s.systemLevel}%"
             return if (parts.isEmpty()) "讀取電量中…" else parts.joinToString("  ·  ")
         }
 

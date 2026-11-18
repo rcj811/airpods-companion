@@ -75,6 +75,8 @@ class MainActivity : ComponentActivity() {
                             onRequestOverlay = {
                                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                             },
+                            locationOn = getSystemService(android.location.LocationManager::class.java).isLocationEnabled,
+                            onRequestLocation = { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
                             onRequestBattery = {
                                 startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
                             },

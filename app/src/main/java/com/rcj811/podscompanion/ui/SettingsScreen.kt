@@ -39,6 +39,8 @@ fun SettingsScreen(
     onRequestPermissions: () -> Unit,
     onRequestOverlay: () -> Unit,
     onRequestBattery: () -> Unit,
+    locationOn: Boolean = true,
+    onRequestLocation: () -> Unit = {},
 ) {
     var popup by remember { mutableStateOf(Prefs.popupEnabled) }
     var seconds by remember { mutableFloatStateOf(Prefs.popupSeconds.toFloat()) }
@@ -56,6 +58,8 @@ fun SettingsScreen(
             PermissionRow("顯示在其他應用程式上層", "連線時跳出 iPad 風格電量卡片", overlayOk, onRequestOverlay)
             HorizontalDivider(Modifier.padding(vertical = 10.dp), color = Color.White.copy(alpha = 0.08f))
             PermissionRow("不限制電池用量", "避免系統把背景服務關掉", batteryOptIgnored, onRequestBattery)
+            HorizontalDivider(Modifier.padding(vertical = 10.dp), color = Color.White.copy(alpha = 0.08f))
+            PermissionRow("定位服務（系統開關）", "Android 掃描藍牙廣播必須開定位", locationOn, onRequestLocation)
         }
 
         SectionTitle("連線彈窗")
