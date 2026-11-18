@@ -60,6 +60,7 @@ data class ScanDiag(
     /** Proximity messages found but too short to decode. */
     val proximityBad: Int = 0,
     val unfiltered: Boolean = false,
+    val hfpEvents: Int = 0,
 )
 
 enum class PodsModel(val label: String, val overEar: Boolean = false, val eqKey: String? = null) {

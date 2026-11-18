@@ -114,6 +114,13 @@ class ParserTest {
         }
     }
 
+    @Test fun hfpBattery() {
+        assertEquals(70, com.rcj811.podscompanion.service.PodsService.hfpBatteryLevel(listOf(2, 1, 6, 2, 0)))
+        assertEquals(100, com.rcj811.podscompanion.service.PodsService.hfpBatteryLevel(listOf(1, 1, 9)))
+        assertNull(com.rcj811.podscompanion.service.PodsService.hfpBatteryLevel(listOf(1, 2, 0)))
+        assertNull(com.rcj811.podscompanion.service.PodsService.hfpBatteryLevel(listOf(5, null)))
+    }
+
     @Test fun eqData() {
         assertEquals(14, EqData.corrections.size)
         EqData.corrections.forEach { assertEquals(10, it.gains.size) }

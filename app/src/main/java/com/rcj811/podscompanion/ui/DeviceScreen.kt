@@ -72,7 +72,7 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
         Card {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 if (s.connected && !s.hasBattery && s.systemLevel in 0..100) {
-                    BatteryGauge("耳機（系統回報）", Pod(s.systemLevel))
+                    BatteryGauge("耳機電量", Pod(s.systemLevel))
                 } else if (s.model.overEar) {
                     BatteryGauge("耳機", s.single)
                 } else {
@@ -84,7 +84,13 @@ fun DeviceScreen(modifier: Modifier = Modifier) {
             if (s.connected) {
                 Spacer(Modifier.height(12.dp))
                 Hint(if (s.batterySource.isNotEmpty()) "來源：${s.batterySource}" else "等待 AirPods 廣播電量…（打開充電盒會更快）")
-                if (!s.hasBattery) {
+                if (!s.hasBattery && s.systemLevel in 0..100) {
+                    Spacer(Modifier.height(6.dp))
+                    Hint("目前只拿到耳機回報的整體電量（10% 精度）。打開充電盒蓋可看到左右耳與充電盒。")
+                }
+                if (!s.hasBattery && s.systemLevel !in 0..100) {
+                    Spacer(Modifier.height(6.dp))
+                    Hint("提示：把耳機放回充電盒、蓋上再拿出來（重新連線），耳機就會回報電量。")
                     if (!locationOn(ctx)) {
                         Spacer(Modifier.height(10.dp))
                         Text("⚠ 手機的「定位」開關是關的", color = Warn, fontSize = 15.sp, fontWeight = FontWeight.Bold)

@@ -65,6 +65,10 @@
                 <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.headset.action.VENDOR_SPECIFIC_HEADSET_EVENT" />
+                <category android:name="android.bluetooth.headset.intent.category.companyid.76" />
+            </intent-filter>
         </receiver>
 
         <receiver

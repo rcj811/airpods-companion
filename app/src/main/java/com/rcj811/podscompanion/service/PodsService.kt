@@ -8,6 +8,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothAssignedNumbers
+import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -89,6 +91,8 @@ class PodsService : Service() {
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
             addAction(ACTION_BATTERY_LEVEL_CHANGED)
+            addAction(BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT)
+            addCategory(BluetoothHeadset.VENDOR_SPECIFIC_HEADSET_EVENT_COMPANY_ID_CATEGORY + "." + BluetoothAssignedNumbers.APPLE)
         }
         ContextCompat.registerReceiver(this, btReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
 
@@ -129,6 +133,12 @@ class PodsService : Service() {
                 .also { if (it) PodsRepository.update { s -> s.copy(conversationalAwareness = intent.getBooleanExtra(EXTRA_ENABLED, true)) } }
             ACTION_CYCLE_MODE -> cycleMode()
             ACTION_REFRESH_EQ -> EqEngine.refresh()
+            ACTION_HFP_BATTERY -> {
+                val level = intent.getIntExtra(EXTRA_LEVEL, -1)
+                if (level in 0..100 && PodsRepository.state.value.connected) {
+                    PodsRepository.update { it.copy(systemLevel = level, diag = it.diag.copy(hfpEvents = it.diag.hfpEvents + 1)) }
+                }
+            }
             ACTION_DEVICE_CONNECTED -> checkAlreadyConnected()
             ACTION_RECONNECT_AACP -> PodsRepository.state.value.deviceAddress?.let { reconnectAacp(it) }
         }
@@ -156,6 +166,7 @@ class PodsService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             val device = deviceFrom(intent) ?: return
             when (intent.action) {
+                BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT -> handleHfpEvent(intent, device)
                 ACTION_BATTERY_LEVEL_CHANGED -> if (device.address == PodsRepository.state.value.deviceAddress) {
                     val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
                     if (level in 0..100) PodsRepository.update { it.copy(systemLevel = level) }
@@ -412,6 +423,21 @@ class PodsService : Service() {
         checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
     else checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * AirPods report their battery to the phone over the hands-free (HFP) link with Apple's
+     * AT+IPHONEACCEV command. Android forwards it to apps as a public vendor-specific event,
+     * which works even when the AirPods don't send BLE broadcasts.
+     */
+    @SuppressLint("MissingPermission")
+    private fun handleHfpEvent(intent: Intent, device: BluetoothDevice) {
+        val level = hfpBatteryLevel(intent) ?: return
+        val s = PodsRepository.state.value
+        if (!s.connected) {
+            if (isApplePods(device)) onPodsConnected(device) else return
+        } else if (s.deviceAddress != device.address) return
+        PodsRepository.update { it.copy(systemLevel = level, diag = it.diag.copy(hfpEvents = it.diag.hfpEvents + 1)) }
+    }
+
     /** Android's own headset battery (from AirPods' HFP report); hidden API, read via reflection. */
     @SuppressLint("MissingPermission")
     private fun systemBatteryLevel(device: BluetoothDevice): Int = runCatching {
@@ -443,6 +469,26 @@ class PodsService : Service() {
         const val ACTION_RECONNECT_AACP = "reconnect_aacp"
         const val EXTRA_MODE = "mode"
         const val EXTRA_ENABLED = "enabled"
+        const val ACTION_HFP_BATTERY = "hfp_battery"
+        const val EXTRA_LEVEL = "level"
+        /** Parses "+IPHONEACCEV" args: [count, key, value, key, value…]; key 1 = battery 0-9. */
+        fun hfpBatteryLevel(intent: Intent): Int? {
+            if (intent.getStringExtra(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD) != "+IPHONEACCEV") return null
+            @Suppress("DEPRECATION")
+            val args = intent.extras?.get(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*> ?: return null
+            return hfpBatteryLevel(args.map { it?.toString()?.trim()?.toIntOrNull() })
+        }
+
+        fun hfpBatteryLevel(args: List<Int?>): Int? {
+            val count = args.firstOrNull() ?: return null
+            for (i in 0 until count) {
+                val key = args.getOrNull(1 + i * 2)
+                val value = args.getOrNull(2 + i * 2) ?: continue
+                if (key == 1 && value in 0..9) return (value + 1) * 10
+            }
+            return null
+        }
+
         const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
 
